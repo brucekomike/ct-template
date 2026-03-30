@@ -32,18 +32,14 @@ jobs:
       - name: Find all Dockerfiles
         id: find
         run: |
-          includes="[]"
-          while IFS= read -r filepath; do
-            filename=$(basename "$filepath")
-            if [ "$filename" = "Dockerfile" ]; then
-              suffix=""
-            else
-              suffix="-${filename#Dockerfile.}"
-            fi
-            entry="{\"dockerfile\":\"$filepath\",\"suffix\":\"$suffix\"}"
-            includes=$(echo "$includes" | jq --argjson e "$entry" '. + [$e]')
-          done < <(find . -name "Dockerfile*" -not -path "*/.git/*" | sort)
-          echo "matrix={\"include\":$includes}" >> "$GITHUB_OUTPUT"
+          matrix=$(find . -type f -name "Dockerfile*" -not -path "./.git/*" | sort | \
+            jq -Rsc '[
+              split("\n")[] | select(length > 0) | . as $f |
+              (. | split("/")[-1]) as $name |
+              (if $name == "Dockerfile" then "" else "-" + ($name | ltrimstr("Dockerfile.")) end) as $suffix |
+              {"dockerfile": $f, "suffix": $suffix}
+            ] | {include: .}')
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
   build-and-push:
     name: Build and Push (${{ github.repository }}${{ matrix.suffix }})
