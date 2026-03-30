@@ -1,0 +1,3 @@
+FROM alpine:3.21
+RUN echo "Hello, World! (alpine variant)" > /hello.txt
+CMD ["cat", "/hello.txt"]

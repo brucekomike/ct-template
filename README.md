@@ -1,14 +1,26 @@
 # ct-template
 
-A GitHub Actions CI template that automatically builds a container image from a `Dockerfile` (or `Containerfile`) and pushes it to the [GitHub Container Registry](https://ghcr.io) (`ghcr.io`).
+A GitHub Actions CI template that automatically builds container images from all `Dockerfile*` files found in the repository and pushes them to the [GitHub Container Registry](https://ghcr.io) (`ghcr.io`).
 
 ## How It Works
 
 The workflow in [`.github/workflows/build-container.yml`](.github/workflows/build-container.yml) is triggered on:
 
-- **Push** to `main` or `master` branches → builds **and pushes** the image.
-- **Push** of a version tag (e.g. `v1.2.3`) → builds and pushes the image with semantic version tags.
-- **Pull Request** targeting `main` or `master` → builds the image only (no push), to validate the `Dockerfile`.
+- **Push** to `main` or `master` branches → builds **and pushes** all images.
+- **Push** of a version tag (e.g. `v1.2.3`) → builds and pushes all images with semantic version tags.
+- **Pull Request** targeting `main` or `master` → builds all images (no push), to validate every `Dockerfile`.
+
+### Multiple Image Support
+
+The workflow automatically discovers every `Dockerfile*` file in the repository and builds a separate image for each one. The image name is derived from the filename:
+
+| Dockerfile         | Image name                                |
+|--------------------|-------------------------------------------|
+| `Dockerfile`       | `ghcr.io/<owner>/<repo>`                 |
+| `Dockerfile.foo`   | `ghcr.io/<owner>/<repo>-foo`             |
+| `Dockerfile.bar`   | `ghcr.io/<owner>/<repo>-bar`             |
+
+Each image is built in parallel using a matrix strategy.
 
 ## Image Tags
 
@@ -24,12 +36,13 @@ Images are automatically tagged using the following scheme:
 ## Usage
 
 1. **Fork or use this repository as a template.**
-2. **Edit the `Dockerfile`** at the root of the repository to build your own application.
-3. **Push to `main`** – the workflow will build your image and push it to:
+2. **Edit the `Dockerfile`** at the root of the repository to build your own application, or add additional `Dockerfile.<name>` files for more images.
+3. **Push to `main`** – the workflow will build each image and push it to:
    ```
    ghcr.io/<your-github-username>/<your-repo-name>:<tag>
+   ghcr.io/<your-github-username>/<your-repo-name>-<name>:<tag>
    ```
-4. **Pull the image:**
+4. **Pull an image:**
    ```bash
    docker pull ghcr.io/<your-github-username>/<your-repo-name>:<tag>
    ```
@@ -41,6 +54,7 @@ Images are automatically tagged using the following scheme:
 
 ## Customisation
 
-- To change the base image or build steps, edit the `Dockerfile`.
+- To change the base image or build steps, edit `Dockerfile`.
+- To add a new image variant, create a new file named `Dockerfile.<name>` – it will be picked up automatically.
 - To trigger on additional branches or tags, update the `on.push` section of the workflow file.
 - To always push on pull requests (e.g. to a staging registry), change `push: ${{ github.event_name != 'pull_request' }}` to `push: true` in the workflow.
