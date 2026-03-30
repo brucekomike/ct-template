@@ -16,15 +16,41 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  detect-dockerfiles:
+    name: Detect Dockerfiles
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.find.outputs.matrix }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Find all Dockerfiles
+        id: find
+        run: |
+          matrix=$(find . -type f -name "Dockerfile*" -not -path "./.git/*" | sort | \
+            jq -Rsc '[
+              split("\n")[] | select(length > 0) | . as $f |
+              (. | split("/")[-1]) as $name |
+              (if $name == "Dockerfile" then "" else "-" + ($name | ltrimstr("Dockerfile.")) end) as $suffix |
+              {"dockerfile": $f, "suffix": $suffix}
+            ] | {include: .}')
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
   build-and-push:
-    name: Build and Push
+    name: Build and Push (${{ github.repository }}${{ matrix.suffix }})
+    needs: detect-dockerfiles
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.detect-dockerfiles.outputs.matrix) }}
 
     steps:
       - name: Checkout repository
@@ -41,7 +67,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ github.repository }}${{ matrix.suffix }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -56,8 +82,10 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
+          file: ${{ matrix.dockerfile }}
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ github.repository }}${{ matrix.suffix }}
+          cache-to: type=gha,scope=${{ github.repository }}${{ matrix.suffix }},mode=max
+
