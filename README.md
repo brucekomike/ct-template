@@ -22,6 +22,16 @@ The workflow automatically discovers every `Dockerfile*` file in the repository 
 
 Each image is built in parallel using a matrix strategy.
 
+### Multi-Architecture Builds
+
+By default, each image is built for:
+
+- `linux/amd64`
+- `linux/arm64`
+
+If a specific Dockerfile is amd64-only, set the workflow env var `AMD64_ONLY_DOCKERFILES` to a comma-separated list of Dockerfile paths or filenames (for example `Dockerfile.legacy,services/api/Dockerfile`).
+Those entries will be built only for `linux/amd64`.
+
 ## Image Tags
 
 Images are automatically tagged using the following scheme:
@@ -56,5 +66,6 @@ Images are automatically tagged using the following scheme:
 
 - To change the base image or build steps, edit `Dockerfile`.
 - To add a new image variant, create a new file named `Dockerfile.<name>` – it will be picked up automatically.
+- To mark specific Dockerfiles as amd64-only, set `.github/workflows/build-container.yml` env `AMD64_ONLY_DOCKERFILES`.
 - To trigger on additional branches or tags, update the `on.push` section of the workflow file.
 - To always push on pull requests (e.g. to a staging registry), change `push: ${{ github.event_name != 'pull_request' }}` to `push: true` in the workflow.

@@ -18,6 +18,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
+  AMD64_ONLY_DOCKERFILES: ''
 
 jobs:
   detect-dockerfiles:
@@ -35,11 +36,14 @@ jobs:
         id: find
         run: |
           matrix=$(find . -type f -name "Dockerfile*" -not -path "./.git/*" | sort | \
-            jq -Rsc '[
+            jq -Rsc --arg amd64_only "${AMD64_ONLY_DOCKERFILES}" '
+              ($amd64_only | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))) as $amd64_only_list |
+              [
               split("\n")[] | select(length > 0) | . as $f |
               (. | split("/")[-1]) as $name |
               (if $name == "Dockerfile" then "" else "-" + ($name | ltrimstr("Dockerfile.")) end) as $suffix |
-              {"dockerfile": $f, "suffix": $suffix}
+              (if (($amd64_only_list | index($f)) != null or ($amd64_only_list | index($name)) != null) then "linux/amd64" else "linux/amd64,linux/arm64" end) as $platforms |
+              {"dockerfile": $f, "suffix": $suffix, "platforms": $platforms}
             ] | {include: .}')
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
@@ -85,9 +89,9 @@ jobs:
         with:
           context: .
           file: ${{ matrix.dockerfile }}
+          platforms: ${{ matrix.platforms }}
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ github.repository }}${{ matrix.suffix }}
           cache-to: type=gha,scope=${{ github.repository }}${{ matrix.suffix }},mode=max
-
