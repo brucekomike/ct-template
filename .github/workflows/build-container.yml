@@ -71,7 +71,7 @@ jobs:
           fi
 
           for i in 0 1 2 3 4; do
-            m=$(echo "$all" | jq --argjson i "$i" '{include: [.[] | select(.stage == $i) | del(.stage)]}')
+            m=$(echo "$all" | jq -c --argjson i "$i" '{include: [.[] | select(.stage == $i) | del(.stage)]}')
             count=$(echo "$m" | jq '.include | length')
             echo "matrix-stage-$i=$m" >> "$GITHUB_OUTPUT"
             if [ "$count" -gt 0 ]; then
