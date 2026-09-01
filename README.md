@@ -55,7 +55,7 @@ A staged Dockerfile can use the image produced by an earlier Dockerfile as its
 base image. For example, `Dockerfile.1` uses the image built from `Dockerfile`:
 
 ```dockerfile
-ARG BASE_IMAGE=<your-local-stage-0-image>:latest
+ARG BASE_IMAGE=ct-template:latest
 FROM ${BASE_IMAGE}
 
 RUN <additional build steps>
