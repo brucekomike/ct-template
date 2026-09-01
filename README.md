@@ -74,6 +74,25 @@ Images are automatically tagged using the following scheme:
    docker pull ghcr.io/<your-github-username>/<your-repo-name>:<tag>
    ```
 
+### Local Build and Push Scripts
+
+The optional helper scripts use the same staged Dockerfile naming convention as
+the workflow. A trailing stage number is ignored when deriving the local image
+name, so `Dockerfile.api.1` and `Dockerfile.api` both map to
+`ct-template-api:latest` unless an image is supplied explicitly.
+
+```bash
+bin/build.sh [Dockerfile[.name][.stage]] [image[:tag]]
+bin/push.sh <remote-repository[:tag]> [local-image[:tag]]
+```
+
+For example:
+
+```bash
+bin/build.sh Dockerfile.api.1 ct-template-api:latest
+bin/push.sh ghcr.io/<your-github-username>/<your-repo-name>-api:latest ct-template-api:latest
+```
+
 ## Requirements
 
 - No additional secrets are needed. The workflow uses the built-in `GITHUB_TOKEN` to authenticate with `ghcr.io`.
