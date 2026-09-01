@@ -104,6 +104,8 @@ name, so `Dockerfile.api.1` and `Dockerfile.api` both map to
 ```bash
 bin/build.sh [Dockerfile[.name][.stage]] [image[:tag]]
 bin/push.sh <remote-repository[:tag]> [local-image[:tag]]
+bin/build-all.sh
+bin/push-all.sh <remote-repository[:tag]>
 ```
 
 For example:
@@ -111,7 +113,13 @@ For example:
 ```bash
 bin/build.sh Dockerfile.api.1 ct-template-api:main
 bin/push.sh ghcr.io/<your-github-username>/<your-repo-name>-api:main ct-template-api:main
+bin/build-all.sh
+bin/push-all.sh ghcr.io/<your-github-username>/<your-repo-name>:main
 ```
+
+`build-all.sh` discovers all `Dockerfile*` files and builds stages in order,
+using the preceding stage's local `main`-tagged image as the base. `push-all.sh`
+pushes each discovered image variant to the matching remote repository name.
 
 ## Requirements
 
