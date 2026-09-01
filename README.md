@@ -8,7 +8,7 @@ The workflow in [`.github/workflows/build-container.yml`](.github/workflows/buil
 
 - **Push** to `main` or `master` branches → builds **and pushes** all images.
 - **Push** of a version tag (e.g. `v1.2.3`) → builds and pushes all images with semantic version tags.
-- **Pull Request** targeting `main` or `master` → builds all images (no push), to validate every `Dockerfile`.
+- **Pull Request** targeting `main` or `master` → builds and pushes PR-tagged images, to validate every `Dockerfile`.
 
 ### Multiple Image Support
 
@@ -63,8 +63,8 @@ RUN <additional build steps>
 
 Build and tag the stage-0 image locally before building the staged Dockerfile,
 then pass its tag through `BASE_IMAGE` if it differs from the default
-`ct-template:main`. In CI, staged builds use the stable `main` tag published by
-the previous stage. The workflow uses
+`ct-template:main`. In CI, staged builds use the current PR tag (or stable
+`main` tag for branch builds) published by the previous stage. The workflow uses
 the same GitHub Actions cache scope
 (`github.repository` plus the image suffix) for matching staged Dockerfiles, so
 unchanged build steps can be reused between stages.
@@ -133,4 +133,4 @@ pushes each discovered image variant to the matching remote repository name.
 - To make an image wait for others to finish building first, end the filename with `.<stage>` (e.g. `Dockerfile.<name>.1`, `Dockerfile.<name>.2`) – see [Staged Builds](#staged-builds).
 - To mark specific Dockerfiles as amd64-only, set `.github/workflows/build-container.yml` env `AMD64_ONLY_DOCKERFILES`.
 - To trigger on additional branches or tags, update the `on.push` section of the workflow file.
-- To always push on pull requests (e.g. to a staging registry), change `push: ${{ github.event_name != 'pull_request' }}` to `push: true` in the workflow.
+- Pull requests publish temporary `pr-<number>` tags so isolated staged-build jobs can share their base images.
