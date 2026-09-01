@@ -11,12 +11,17 @@ if [[ ! -f "$dockerfile" ]]; then
 fi
 
 if [[ -z "$image" ]]; then
+  repository="$(git config --get remote.origin.url 2>/dev/null || true)"
+  repository="${repository##*/}"
+  repository="${repository%.git}"
+  [[ -n "$repository" ]] || repository="$(basename "$(git rev-parse --show-toplevel)")"
+  repository="${repository,,}"
   filename="${dockerfile##*/}"
   name="${filename#Dockerfile}"
   if [[ "$name" =~ ^(.*)\.([0-9]+)$ ]]; then
     name="${BASH_REMATCH[1]}"
   fi
-  image="ct-template${name//./-}:main"
+  image="${repository}${name//./-}:main"
 fi
 
 docker build --file "$dockerfile" --tag "$image" .

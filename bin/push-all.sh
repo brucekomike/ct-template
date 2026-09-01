@@ -20,6 +20,12 @@ else
   tag=':main'
 fi
 
+repository="$(git config --get remote.origin.url 2>/dev/null || true)"
+repository="${repository##*/}"
+repository="${repository%.git}"
+[[ -n "$repository" ]] || repository="$(basename "$(git rev-parse --show-toplevel)")"
+repository="${repository,,}"
+
 declare -A pushed=()
 while IFS= read -r dockerfile; do
   filename="${dockerfile##*/}"
@@ -30,7 +36,7 @@ while IFS= read -r dockerfile; do
   key="${name:-root}"
   [[ -z "${pushed[$key]+x}" ]] || continue
   pushed["$key"]=1
-  image="ct-template${name//./-}:main"
+  image="${repository}${name//./-}:main"
   remote_image="${remote_name}${name//./-}${tag}"
   [[ -n "$remote_dir" ]] && remote_image="${remote_dir}/${remote_image}"
   bin_dir="$(cd "$(dirname "$0")" && pwd)"
