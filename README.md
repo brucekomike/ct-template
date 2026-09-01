@@ -32,6 +32,23 @@ By default, each image is built for:
 If a specific Dockerfile is amd64-only, set the workflow env var `AMD64_ONLY_DOCKERFILES` to a comma-separated list of Dockerfile paths or filenames (for example `Dockerfile.legacy,services/api/Dockerfile`).
 Those entries will be built only for `linux/amd64`.
 
+### Staged Builds
+
+If you need some images to build only after others have finished (for example, a base image that other Dockerfiles depend on), end the filename with a numeric suffix:
+
+| Dockerfile           | Stage | Image name                    |
+|-----------------------|-------|-------------------------------|
+| `Dockerfile`          | 0     | `ghcr.io/<owner>/<repo>`      |
+| `Dockerfile.foo`      | 0     | `ghcr.io/<owner>/<repo>-foo`  |
+| `Dockerfile.foo.1`    | 1     | `ghcr.io/<owner>/<repo>-foo`  |
+| `Dockerfile.bar.2`    | 2     | `ghcr.io/<owner>/<repo>-bar`  |
+
+- Files with no trailing numeric suffix (or none at all) are stage `0` and build first, in parallel, exactly as before.
+- Files ending in `.1` build in a separate job that only starts once every stage `0` job has finished.
+- Files ending in `.2` wait for all `.1` jobs, and so on.
+- Stages `0` through `4` are supported (`.1`–`.4`); a Dockerfile with a higher numeric suffix is detected but has no build job to run it.
+- If an earlier stage has no matching Dockerfiles, its build job is skipped and later stages proceed normally.
+
 ## Image Tags
 
 Images are automatically tagged using the following scheme:
@@ -66,6 +83,7 @@ Images are automatically tagged using the following scheme:
 
 - To change the base image or build steps, edit `Dockerfile`.
 - To add a new image variant, create a new file named `Dockerfile.<name>` – it will be picked up automatically.
+- To make an image wait for others to finish building first, end the filename with `.<stage>` (e.g. `Dockerfile.<name>.1`, `Dockerfile.<name>.2`) – see [Staged Builds](#staged-builds).
 - To mark specific Dockerfiles as amd64-only, set `.github/workflows/build-container.yml` env `AMD64_ONLY_DOCKERFILES`.
 - To trigger on additional branches or tags, update the `on.push` section of the workflow file.
 - To always push on pull requests (e.g. to a staging registry), change `push: ${{ github.event_name != 'pull_request' }}` to `push: true` in the workflow.

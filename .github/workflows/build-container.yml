@@ -27,7 +27,17 @@ jobs:
     permissions:
       contents: read
     outputs:
-      matrix: ${{ steps.find.outputs.matrix }}
+      matrix-stage-0: ${{ steps.find.outputs.matrix-stage-0 }}
+      matrix-stage-1: ${{ steps.find.outputs.matrix-stage-1 }}
+      matrix-stage-2: ${{ steps.find.outputs.matrix-stage-2 }}
+      matrix-stage-3: ${{ steps.find.outputs.matrix-stage-3 }}
+      matrix-stage-4: ${{ steps.find.outputs.matrix-stage-4 }}
+      has-stage-0: ${{ steps.find.outputs.has-stage-0 }}
+      has-stage-1: ${{ steps.find.outputs.has-stage-1 }}
+      has-stage-2: ${{ steps.find.outputs.has-stage-2 }}
+      has-stage-3: ${{ steps.find.outputs.has-stage-3 }}
+      has-stage-4: ${{ steps.find.outputs.has-stage-4 }}
+      max-stage: ${{ steps.find.outputs.max-stage }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -35,28 +45,266 @@ jobs:
       - name: Find all Dockerfiles
         id: find
         run: |
-          matrix=$(find . -type f -name "Dockerfile*" -not -path "./.git/*" | sort | \
+          # Discover every Dockerfile* and compute a "stage" for each one, based on a
+          # trailing numeric suffix (e.g. "Dockerfile.foo.1" -> stage 1, "Dockerfile" -> stage 0).
+          all=$(find . -type f -name "Dockerfile*" -not -path "./.git/*" | sort | \
             jq -Rsc --arg amd64_only "${AMD64_ONLY_DOCKERFILES}" '
               ($amd64_only | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))) as $amd64_only_list |
               [
               split("\n")[] | select(length > 0) | . as $f |
               (. | split("/")[-1]) as $name |
-              (if $name == "Dockerfile" then "" else "-" + ($name | ltrimstr("Dockerfile.")) end) as $suffix |
+              (if $name == "Dockerfile" then "" else ($name | ltrimstr("Dockerfile.")) end) as $full_rest |
+              ($full_rest | split(".")) as $parts |
+              (if $full_rest == "" then {stage: 0, rest: ""}
+               elif ($parts[-1] | test("^[0-9]+$")) then {stage: ($parts[-1] | tonumber), rest: ($parts[0:-1] | join("."))}
+               else {stage: 0, rest: $full_rest}
+               end) as $r |
+              (if $r.rest == "" then "" else "-" + $r.rest end) as $suffix |
               (if (($amd64_only_list | index($f)) != null or ($amd64_only_list | index($name)) != null) then "linux/amd64" else "linux/amd64,linux/arm64" end) as $platforms |
-              {"dockerfile": $f, "suffix": $suffix, "platforms": $platforms}
-            ] | {include: .}')
-          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+              {"dockerfile": $f, "suffix": $suffix, "platforms": $platforms, "stage": $r.stage}
+            ]')
 
-  build-and-push:
+          max_stage=$(echo "$all" | jq '[.[].stage] | max // 0')
+          echo "max-stage=$max_stage" >> "$GITHUB_OUTPUT"
+
+          for i in 0 1 2 3 4; do
+            m=$(echo "$all" | jq --argjson i "$i" '{include: [.[] | select(.stage == $i) | del(.stage)]}')
+            count=$(echo "$m" | jq '.include | length')
+            echo "matrix-stage-$i=$m" >> "$GITHUB_OUTPUT"
+            if [ "$count" -gt 0 ]; then
+              echo "has-stage-$i=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "has-stage-$i=false" >> "$GITHUB_OUTPUT"
+            fi
+          done
+
+  build-stage-0:
     name: Build and Push (${{ github.repository }}${{ matrix.suffix }})
     needs: detect-dockerfiles
+    if: needs.detect-dockerfiles.outputs.has-stage-0 == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.detect-dockerfiles.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.detect-dockerfiles.outputs.matrix-stage-0) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}${{ matrix.suffix }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=,format=short
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push container image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: ${{ matrix.platforms }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: false
+          cache-from: type=gha,scope=${{ github.repository }}${{ matrix.suffix }}
+          cache-to: type=gha,scope=${{ github.repository }}${{ matrix.suffix }},mode=max
+
+  build-stage-1:
+    name: Build and Push (${{ github.repository }}${{ matrix.suffix }})
+    needs: [detect-dockerfiles, build-stage-0]
+    if: |
+      always() &&
+      needs.detect-dockerfiles.outputs.has-stage-1 == 'true' &&
+      needs.build-stage-0.result != 'failure' && needs.build-stage-0.result != 'cancelled'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.detect-dockerfiles.outputs.matrix-stage-1) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}${{ matrix.suffix }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=,format=short
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push container image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: ${{ matrix.platforms }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: false
+          cache-from: type=gha,scope=${{ github.repository }}${{ matrix.suffix }}
+          cache-to: type=gha,scope=${{ github.repository }}${{ matrix.suffix }},mode=max
+
+  build-stage-2:
+    name: Build and Push (${{ github.repository }}${{ matrix.suffix }})
+    needs: [detect-dockerfiles, build-stage-1]
+    if: |
+      always() &&
+      needs.detect-dockerfiles.outputs.has-stage-2 == 'true' &&
+      needs.build-stage-1.result != 'failure' && needs.build-stage-1.result != 'cancelled'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.detect-dockerfiles.outputs.matrix-stage-2) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}${{ matrix.suffix }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=,format=short
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push container image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: ${{ matrix.platforms }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: false
+          cache-from: type=gha,scope=${{ github.repository }}${{ matrix.suffix }}
+          cache-to: type=gha,scope=${{ github.repository }}${{ matrix.suffix }},mode=max
+
+  build-stage-3:
+    name: Build and Push (${{ github.repository }}${{ matrix.suffix }})
+    needs: [detect-dockerfiles, build-stage-2]
+    if: |
+      always() &&
+      needs.detect-dockerfiles.outputs.has-stage-3 == 'true' &&
+      needs.build-stage-2.result != 'failure' && needs.build-stage-2.result != 'cancelled'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.detect-dockerfiles.outputs.matrix-stage-3) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}${{ matrix.suffix }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=,format=short
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push container image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: ${{ matrix.platforms }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: false
+          cache-from: type=gha,scope=${{ github.repository }}${{ matrix.suffix }}
+          cache-to: type=gha,scope=${{ github.repository }}${{ matrix.suffix }},mode=max
+
+  build-stage-4:
+    name: Build and Push (${{ github.repository }}${{ matrix.suffix }})
+    needs: [detect-dockerfiles, build-stage-3]
+    if: |
+      always() &&
+      needs.detect-dockerfiles.outputs.has-stage-4 == 'true' &&
+      needs.build-stage-3.result != 'failure' && needs.build-stage-3.result != 'cancelled'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.detect-dockerfiles.outputs.matrix-stage-4) }}
 
     steps:
       - name: Checkout repository
