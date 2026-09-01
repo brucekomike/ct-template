@@ -125,7 +125,7 @@ jobs:
           context: .
           file: ${{ matrix.dockerfile }}
           platforms: ${{ matrix.platforms }}
-          build-args: BASE_IMAGE=${{ env.REGISTRY }}/${{ github.repository }}${{ matrix.suffix }}:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.number) || 'main' }}
+          build-args: BASE_IMAGE=${{ env.REGISTRY }}/${{ github.repository }}${{ matrix.suffix }}:${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && format('pr-{0}', github.event.number) || 'main' }}
           push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -181,7 +181,7 @@ jobs:
           context: .
           file: ${{ matrix.dockerfile }}
           platforms: ${{ matrix.platforms }}
-          build-args: BASE_IMAGE=${{ env.REGISTRY }}/${{ github.repository }}${{ matrix.suffix }}:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.number) || 'main' }}
+          build-args: BASE_IMAGE=${{ env.REGISTRY }}/${{ github.repository }}${{ matrix.suffix }}:${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && format('pr-{0}', github.event.number) || 'main' }}
           push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -238,7 +238,7 @@ jobs:
           context: .
           file: ${{ matrix.dockerfile }}
           platforms: ${{ matrix.platforms }}
-          build-args: BASE_IMAGE=${{ env.REGISTRY }}/${{ github.repository }}${{ matrix.suffix }}:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.number) || 'main' }}
+          build-args: BASE_IMAGE=${{ env.REGISTRY }}/${{ github.repository }}${{ matrix.suffix }}:${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && format('pr-{0}', github.event.number) || 'main' }}
           push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -296,7 +296,7 @@ jobs:
           context: .
           file: ${{ matrix.dockerfile }}
           platforms: ${{ matrix.platforms }}
-          build-args: BASE_IMAGE=${{ env.REGISTRY }}/${{ github.repository }}${{ matrix.suffix }}:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.number) || 'main' }}
+          build-args: BASE_IMAGE=${{ env.REGISTRY }}/${{ github.repository }}${{ matrix.suffix }}:${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && format('pr-{0}', github.event.number) || 'main' }}
           push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -355,7 +355,7 @@ jobs:
           context: .
           file: ${{ matrix.dockerfile }}
           platforms: ${{ matrix.platforms }}
-          build-args: BASE_IMAGE=${{ env.REGISTRY }}/${{ github.repository }}${{ matrix.suffix }}:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.number) || 'main' }}
+          build-args: BASE_IMAGE=${{ env.REGISTRY }}/${{ github.repository }}${{ matrix.suffix }}:${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && format('pr-{0}', github.event.number) || 'main' }}
           push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
