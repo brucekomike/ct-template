@@ -133,4 +133,4 @@ pushes each discovered image variant to the matching remote repository name.
 - To make an image wait for others to finish building first, end the filename with `.<stage>` (e.g. `Dockerfile.<name>.1`, `Dockerfile.<name>.2`) – see [Staged Builds](#staged-builds).
 - To mark specific Dockerfiles as amd64-only, set `.github/workflows/build-container.yml` env `AMD64_ONLY_DOCKERFILES`.
 - To trigger on additional branches or tags, update the `on.push` section of the workflow file.
-- Pull requests publish temporary `pr-<number>` tags so isolated staged-build jobs can share their base images.
+- Same-repository pull requests publish temporary `pr-<number>` tags so isolated staged-build jobs can share their base images; fork pull requests cannot publish images.
