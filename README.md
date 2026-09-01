@@ -49,6 +49,26 @@ If you need some images to build only after others have finished (for example, a
 - Stages `0` through `4` are supported (`.1`–`.4`); a Dockerfile with a higher numeric suffix is detected but has no build job to run it.
 - If an earlier stage has no matching Dockerfiles, its build job is skipped and later stages proceed normally.
 
+### Using a Previous Stage as a Base Image
+
+A staged Dockerfile can use the image produced by an earlier Dockerfile as its
+base image. For example, `Dockerfile.1` uses the image built from `Dockerfile`:
+
+```dockerfile
+ARG BASE_IMAGE=ct-template:latest
+FROM ${BASE_IMAGE}
+
+RUN <additional build steps>
+```
+
+Build and tag the stage-0 image locally before building the staged Dockerfile,
+then pass its tag through `BASE_IMAGE` if it differs from the default
+`ct-template:latest`. In CI, set `BASE_IMAGE` to the tag published by the
+previous stage (such as `main`, `pr-42`, or a version tag). The workflow uses
+the same GitHub Actions cache scope
+(`github.repository` plus the image suffix) for matching staged Dockerfiles, so
+unchanged build steps can be reused between stages.
+
 ## Image Tags
 
 Images are automatically tagged using the following scheme:
