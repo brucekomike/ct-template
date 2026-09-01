@@ -18,7 +18,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  AMD64_ONLY_DOCKERFILES: ''
+  AMD64_ONLY_DOCKERFILES: 'Dockerfile.amd64.1'
 
 jobs:
   detect-dockerfiles:
@@ -40,7 +40,7 @@ jobs:
       max-stage: ${{ steps.find.outputs.max-stage }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Find all Dockerfiles
         id: find
@@ -95,7 +95,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Log in to the Container registry
         uses: docker/login-action@v3
@@ -151,7 +151,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Log in to the Container registry
         uses: docker/login-action@v3
@@ -208,7 +208,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Log in to the Container registry
         uses: docker/login-action@v3
@@ -266,7 +266,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Log in to the Container registry
         uses: docker/login-action@v3
