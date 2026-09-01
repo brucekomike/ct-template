@@ -137,6 +137,7 @@ jobs:
     needs: [detect-dockerfiles, build-stage-0]
     if: |
       always() &&
+      needs.detect-dockerfiles.result == 'success' &&
       needs.detect-dockerfiles.outputs.has-stage-1 == 'true' &&
       (needs.build-stage-0.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-0 == 'false')
     runs-on: ubuntu-latest
@@ -191,6 +192,7 @@ jobs:
     needs: [detect-dockerfiles, build-stage-0, build-stage-1]
     if: |
       always() &&
+      needs.detect-dockerfiles.result == 'success' &&
       needs.detect-dockerfiles.outputs.has-stage-2 == 'true' &&
       (needs.build-stage-0.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-0 == 'false') &&
       (needs.build-stage-1.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-1 == 'false')
@@ -246,6 +248,7 @@ jobs:
     needs: [detect-dockerfiles, build-stage-0, build-stage-1, build-stage-2]
     if: |
       always() &&
+      needs.detect-dockerfiles.result == 'success' &&
       needs.detect-dockerfiles.outputs.has-stage-3 == 'true' &&
       (needs.build-stage-0.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-0 == 'false') &&
       (needs.build-stage-1.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-1 == 'false') &&
@@ -302,6 +305,7 @@ jobs:
     needs: [detect-dockerfiles, build-stage-0, build-stage-1, build-stage-2, build-stage-3]
     if: |
       always() &&
+      needs.detect-dockerfiles.result == 'success' &&
       needs.detect-dockerfiles.outputs.has-stage-4 == 'true' &&
       (needs.build-stage-0.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-0 == 'false') &&
       (needs.build-stage-1.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-1 == 'false') &&
