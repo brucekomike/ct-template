@@ -1,3 +1,4 @@
-FROM ghcr.io/brucekomike/ct-template:main
+ARG BASE_IMAGE=ghcr.io/brucekomike/ct-template:main
+FROM ${BASE_IMAGE}
 
 RUN echo "This stage is built on the image from Dockerfile."
