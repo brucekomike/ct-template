@@ -55,15 +55,17 @@ A staged Dockerfile can use the image produced by an earlier Dockerfile as its
 base image. For example, `Dockerfile.1` uses the image built from `Dockerfile`:
 
 ```dockerfile
-FROM ghcr.io/<your-github-username>/<your-repo-name>:main
+ARG BASE_IMAGE=<your-local-stage-0-image>:latest
+FROM ${BASE_IMAGE}
 
 RUN <additional build steps>
 ```
 
-The base image reference must use a tag that was published by the previous
-stage (such as `main`, `pr-42`, or a version tag). Set the `BASE_IMAGE` build
-argument when the default image reference does not match your repository. The
-workflow uses the same GitHub Actions cache scope
+Build and tag the stage-0 image locally before building the staged Dockerfile,
+then pass its tag through `BASE_IMAGE` if it differs from the default
+`ct-template:latest`. In CI, set `BASE_IMAGE` to the tag published by the
+previous stage (such as `main`, `pr-42`, or a version tag). The workflow uses
+the same GitHub Actions cache scope
 (`github.repository` plus the image suffix) for matching staged Dockerfiles, so
 unchanged build steps can be reused between stages.
 
