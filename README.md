@@ -49,6 +49,22 @@ If you need some images to build only after others have finished (for example, a
 - Stages `0` through `4` are supported (`.1`–`.4`); a Dockerfile with a higher numeric suffix is detected but has no build job to run it.
 - If an earlier stage has no matching Dockerfiles, its build job is skipped and later stages proceed normally.
 
+### Using a Previous Stage as a Base Image
+
+A staged Dockerfile can use the image produced by an earlier Dockerfile as its
+base image. For example, `Dockerfile.1` uses the image built from `Dockerfile`:
+
+```dockerfile
+FROM ghcr.io/<your-github-username>/<your-repo-name>:main
+
+RUN <additional build steps>
+```
+
+The base image reference must use a tag that was published by the previous
+stage (such as `main`, `pr-42`, or a version tag). The stage jobs share the
+BuildKit cache for Dockerfiles with the same image suffix, so unchanged build
+steps can be reused between stages.
+
 ## Image Tags
 
 Images are automatically tagged using the following scheme:
