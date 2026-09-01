@@ -16,7 +16,7 @@ if [[ -z "$image" ]]; then
   if [[ "$name" =~ ^(.*)\.([0-9]+)$ ]]; then
     name="${BASH_REMATCH[1]}"
   fi
-  image="ct-template${name//./-}:latest"
+  image="ct-template${name//./-}:main"
 fi
 
 docker build --file "$dockerfile" --tag "$image" .

@@ -55,7 +55,7 @@ A staged Dockerfile can use the image produced by an earlier Dockerfile as its
 base image. For example, `Dockerfile.1` uses the image built from `Dockerfile`:
 
 ```dockerfile
-ARG BASE_IMAGE=ct-template:latest
+ARG BASE_IMAGE=ct-template:main
 FROM ${BASE_IMAGE}
 
 RUN <additional build steps>
@@ -63,8 +63,8 @@ RUN <additional build steps>
 
 Build and tag the stage-0 image locally before building the staged Dockerfile,
 then pass its tag through `BASE_IMAGE` if it differs from the default
-`ct-template:latest`. In CI, set `BASE_IMAGE` to the tag published by the
-previous stage (such as `main`, `pr-42`, or a version tag). The workflow uses
+`ct-template:main`. In CI, staged builds use the stable `main` tag published by
+the previous stage. The workflow uses
 the same GitHub Actions cache scope
 (`github.repository` plus the image suffix) for matching staged Dockerfiles, so
 unchanged build steps can be reused between stages.
@@ -99,7 +99,7 @@ Images are automatically tagged using the following scheme:
 The optional helper scripts use the same staged Dockerfile naming convention as
 the workflow. A trailing stage number is ignored when deriving the local image
 name, so `Dockerfile.api.1` and `Dockerfile.api` both map to
-`ct-template-api:latest` unless an image is supplied explicitly.
+`ct-template-api:main` unless an image is supplied explicitly.
 
 ```bash
 bin/build.sh [Dockerfile[.name][.stage]] [image[:tag]]
@@ -109,8 +109,8 @@ bin/push.sh <remote-repository[:tag]> [local-image[:tag]]
 For example:
 
 ```bash
-bin/build.sh Dockerfile.api.1 ct-template-api:latest
-bin/push.sh ghcr.io/<your-github-username>/<your-repo-name>-api:latest ct-template-api:latest
+bin/build.sh Dockerfile.api.1 ct-template-api:main
+bin/push.sh ghcr.io/<your-github-username>/<your-repo-name>-api:main ct-template-api:main
 ```
 
 ## Requirements

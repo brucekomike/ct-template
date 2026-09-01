@@ -10,12 +10,12 @@ fi
 remote="$1"
 local="${2:-$remote}"
 
-# Docker treats an omitted tag as latest; make it explicit for docker tag.
+# Docker treats an omitted tag as latest; make the stable main tag explicit.
 if [[ "$remote" != *@* && "$remote" != *:* ]]; then
-  remote="${remote}:latest"
+  remote="${remote}:main"
 fi
 if [[ "$local" != *@* && "$local" != *:* ]]; then
-  local="${local}:latest"
+  local="${local}:main"
 fi
 
 if [[ "$local" != "$remote" ]]; then
