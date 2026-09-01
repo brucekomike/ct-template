@@ -63,8 +63,9 @@ RUN <additional build steps>
 The base image reference must use a tag that was published by the previous
 stage (such as `main`, `pr-42`, or a version tag). Set the `BASE_IMAGE` build
 argument when the default image reference does not match your repository. The
-stage jobs share the BuildKit cache for Dockerfiles with the same image suffix,
-so unchanged build steps can be reused between stages.
+workflow uses the same GitHub Actions cache scope
+(`github.repository` plus the image suffix) for matching staged Dockerfiles, so
+unchanged build steps can be reused between stages.
 
 ## Image Tags
 
