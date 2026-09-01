@@ -66,6 +66,9 @@ jobs:
 
           max_stage=$(echo "$all" | jq '[.[].stage] | max // 0')
           echo "max-stage=$max_stage" >> "$GITHUB_OUTPUT"
+          if [ "$max_stage" -gt 4 ]; then
+            echo "::warning::Found a Dockerfile with stage $max_stage, but only stages 0-4 (suffixes .1-.4) have build jobs. Dockerfiles beyond stage 4 will not be built."
+          fi
 
           for i in 0 1 2 3 4; do
             m=$(echo "$all" | jq --argjson i "$i" '{include: [.[] | select(.stage == $i) | del(.stage)]}')
@@ -135,7 +138,7 @@ jobs:
     if: |
       always() &&
       needs.detect-dockerfiles.outputs.has-stage-1 == 'true' &&
-      needs.build-stage-0.result != 'failure' && needs.build-stage-0.result != 'cancelled'
+      (needs.build-stage-0.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-0 == 'false')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -185,11 +188,12 @@ jobs:
 
   build-stage-2:
     name: Build and Push (${{ github.repository }}${{ matrix.suffix }})
-    needs: [detect-dockerfiles, build-stage-1]
+    needs: [detect-dockerfiles, build-stage-0, build-stage-1]
     if: |
       always() &&
       needs.detect-dockerfiles.outputs.has-stage-2 == 'true' &&
-      needs.build-stage-1.result != 'failure' && needs.build-stage-1.result != 'cancelled'
+      (needs.build-stage-0.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-0 == 'false') &&
+      (needs.build-stage-1.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-1 == 'false')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -239,11 +243,13 @@ jobs:
 
   build-stage-3:
     name: Build and Push (${{ github.repository }}${{ matrix.suffix }})
-    needs: [detect-dockerfiles, build-stage-2]
+    needs: [detect-dockerfiles, build-stage-0, build-stage-1, build-stage-2]
     if: |
       always() &&
       needs.detect-dockerfiles.outputs.has-stage-3 == 'true' &&
-      needs.build-stage-2.result != 'failure' && needs.build-stage-2.result != 'cancelled'
+      (needs.build-stage-0.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-0 == 'false') &&
+      (needs.build-stage-1.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-1 == 'false') &&
+      (needs.build-stage-2.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-2 == 'false')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -293,11 +299,14 @@ jobs:
 
   build-stage-4:
     name: Build and Push (${{ github.repository }}${{ matrix.suffix }})
-    needs: [detect-dockerfiles, build-stage-3]
+    needs: [detect-dockerfiles, build-stage-0, build-stage-1, build-stage-2, build-stage-3]
     if: |
       always() &&
       needs.detect-dockerfiles.outputs.has-stage-4 == 'true' &&
-      needs.build-stage-3.result != 'failure' && needs.build-stage-3.result != 'cancelled'
+      (needs.build-stage-0.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-0 == 'false') &&
+      (needs.build-stage-1.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-1 == 'false') &&
+      (needs.build-stage-2.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-2 == 'false') &&
+      (needs.build-stage-3.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-3 == 'false')
     runs-on: ubuntu-latest
     permissions:
       contents: read
