@@ -8,7 +8,7 @@ The workflow in [`.github/workflows/build-container.yml`](.github/workflows/buil
 
 - **Push** to `main` or `master` branches → builds **and pushes** all images.
 - **Push** of a version tag (e.g. `v1.2.3`) → builds and pushes all images with semantic version tags.
-- **Pull Request** targeting `main` or `master` → builds all images (no push), to validate every `Dockerfile`.
+- **Pull Request** targeting `main` or `master` → builds and pushes PR-tagged images, to validate every `Dockerfile`.
 
 ### Multiple Image Support
 
@@ -55,7 +55,7 @@ A staged Dockerfile can use the image produced by an earlier Dockerfile as its
 base image. For example, `Dockerfile.1` uses the image built from `Dockerfile`:
 
 ```dockerfile
-ARG BASE_IMAGE=ct-template:latest
+ARG BASE_IMAGE=ct-template:main
 FROM ${BASE_IMAGE}
 
 RUN <additional build steps>
@@ -63,8 +63,8 @@ RUN <additional build steps>
 
 Build and tag the stage-0 image locally before building the staged Dockerfile,
 then pass its tag through `BASE_IMAGE` if it differs from the default
-`ct-template:latest`. In CI, set `BASE_IMAGE` to the tag published by the
-previous stage (such as `main`, `pr-42`, or a version tag). The workflow uses
+`ct-template:main`. In CI, staged builds use the current PR tag (or stable
+`main` tag for branch builds) published by the previous stage. The workflow uses
 the same GitHub Actions cache scope
 (`github.repository` plus the image suffix) for matching staged Dockerfiles, so
 unchanged build steps can be reused between stages.
@@ -94,6 +94,33 @@ Images are automatically tagged using the following scheme:
    docker pull ghcr.io/<your-github-username>/<your-repo-name>:<tag>
    ```
 
+### Local Build and Push Scripts
+
+The optional helper scripts use the same staged Dockerfile naming convention as
+the workflow. A trailing stage number is ignored when deriving the local image
+name, so `Dockerfile.api.1` and `Dockerfile.api` both map to
+`ct-template-api:main` unless an image is supplied explicitly.
+
+```bash
+bin/build.sh [Dockerfile[.name][.stage]] [image[:tag]]
+bin/push.sh <remote-repository[:tag]> [local-image[:tag]]
+bin/build-all.sh
+bin/push-all.sh <remote-repository[:tag]>
+```
+
+For example:
+
+```bash
+bin/build.sh Dockerfile.api.1 ct-template-api:main
+bin/push.sh ghcr.io/<your-github-username>/<your-repo-name>-api:main ct-template-api:main
+bin/build-all.sh
+bin/push-all.sh ghcr.io/<your-github-username>/<your-repo-name>:main
+```
+
+`build-all.sh` discovers all `Dockerfile*` files and builds stages in order,
+using the preceding stage's local `main`-tagged image as the base. `push-all.sh`
+pushes each discovered image variant to the matching remote repository name.
+
 ## Requirements
 
 - No additional secrets are needed. The workflow uses the built-in `GITHUB_TOKEN` to authenticate with `ghcr.io`.
@@ -106,4 +133,4 @@ Images are automatically tagged using the following scheme:
 - To make an image wait for others to finish building first, end the filename with `.<stage>` (e.g. `Dockerfile.<name>.1`, `Dockerfile.<name>.2`) – see [Staged Builds](#staged-builds).
 - To mark specific Dockerfiles as amd64-only, set `.github/workflows/build-container.yml` env `AMD64_ONLY_DOCKERFILES`.
 - To trigger on additional branches or tags, update the `on.push` section of the workflow file.
-- To always push on pull requests (e.g. to a staging registry), change `push: ${{ github.event_name != 'pull_request' }}` to `push: true` in the workflow.
+- Same-repository pull requests publish temporary `pr-<number>` tags so isolated staged-build jobs can share their base images; fork pull requests cannot publish images.
