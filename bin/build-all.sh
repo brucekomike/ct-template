@@ -7,6 +7,12 @@ while IFS= read -r file; do
   files+=("$file")
 done < <(find . -type f -name 'Dockerfile*' -not -path './.git/*' | sort)
 
+repository="$(git config --get remote.origin.url 2>/dev/null || true)"
+repository="${repository##*/}"
+repository="${repository%.git}"
+[[ -n "$repository" ]] || repository="$(basename "$(git rev-parse --show-toplevel)")"
+repository="${repository,,}"
+
 if [[ ${#files[@]} -eq 0 ]]; then
   printf 'No Dockerfiles found.\n' >&2
   exit 1
@@ -23,10 +29,10 @@ for stage in 0 1 2 3 4; do
     fi
     [[ "$current_stage" -eq "$stage" ]] || continue
 
-    image="ct-template${name//./-}:main"
+    image="${repository}${name//./-}:main"
     args=()
     if [[ "$stage" -gt 0 ]]; then
-      args+=(--build-arg "BASE_IMAGE=ct-template${name//./-}:main")
+      args+=(--build-arg "BASE_IMAGE=${repository}${name//./-}:main")
     fi
     docker build --file "$dockerfile" --tag "$image" "${args[@]}" .
   done

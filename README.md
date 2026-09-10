@@ -31,6 +31,7 @@ By default, each image is built for:
 
 If a specific Dockerfile is amd64-only, set the workflow env var `AMD64_ONLY_DOCKERFILES` to a comma-separated list of Dockerfile paths or filenames (for example `Dockerfile.legacy,services/api/Dockerfile`).
 Those entries will be built only for `linux/amd64`.
+This template includes `Dockerfile.amd64.1` as an amd64-only example.
 
 ### Staged Builds
 
@@ -97,9 +98,10 @@ Images are automatically tagged using the following scheme:
 ### Local Build and Push Scripts
 
 The optional helper scripts use the same staged Dockerfile naming convention as
-the workflow. A trailing stage number is ignored when deriving the local image
-name, so `Dockerfile.api.1` and `Dockerfile.api` both map to
-`ct-template-api:main` unless an image is supplied explicitly.
+the workflow. They derive the local image name from the Git repository name. A
+trailing stage number is ignored when deriving the image name, so
+`Dockerfile.api.1` and `Dockerfile.api` in a repository named `my-app` both map
+to `my-app-api:main` unless an image is supplied explicitly.
 
 ```bash
 bin/build.sh [Dockerfile[.name][.stage]] [image[:tag]]
@@ -111,8 +113,8 @@ bin/push-all.sh <remote-repository[:tag]>
 For example:
 
 ```bash
-bin/build.sh Dockerfile.api.1 ct-template-api:main
-bin/push.sh ghcr.io/<your-github-username>/<your-repo-name>-api:main ct-template-api:main
+bin/build.sh Dockerfile.api.1 my-app-api:main
+bin/push.sh ghcr.io/<your-github-username>/<your-repo-name>-api:main my-app-api:main
 bin/build-all.sh
 bin/push-all.sh ghcr.io/<your-github-username>/<your-repo-name>:main
 ```
