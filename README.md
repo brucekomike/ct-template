@@ -59,7 +59,8 @@ base image. For example, `Dockerfile.foo.1` uses the image built from
 
 ```dockerfile
 ARG BASE_IMAGE=ct-template:main
-FROM ${BASE_IMAGE}
+ARG BASE_IMAGE_FALLBACK_PREFIX=
+FROM ${BASE_IMAGE_FALLBACK_PREFIX}${BASE_IMAGE}
 
 RUN <additional build steps>
 ```
@@ -67,10 +68,13 @@ RUN <additional build steps>
 Set `BASE_IMAGE` in each staged Dockerfile to the local image tag that should be
 used as its base. For example, `Dockerfile.foo.1` can default to
 `ct-template:main`, while `Dockerfile.bar.2` can default to
-`ct-template-foo:main`. In CI, every build also receives an explicit `:main`
-tag so staged Dockerfiles can resolve those base images consistently, while the
-workflow continues to use the same GitHub Actions cache scope
-(`github.repository` plus the image suffix) for matching Dockerfiles.
+`ct-template-foo:main`. Leave `BASE_IMAGE_FALLBACK_PREFIX` empty for local
+builds so Docker resolves those local tags directly. In CI, the workflow sets
+that prefix to `ghcr.io/<owner>/` and also adds an explicit `:main` tag, so
+staged Dockerfiles can fall back to the current repository's published images
+when the local builder cannot resolve a prior stage image directly. The
+workflow also publishes both shared and per-image GitHub Actions cache scopes so
+Dockerfiles can reuse cached layers across stages.
 
 ## Image Tags
 
