@@ -1,4 +1,5 @@
 ARG BASE_IMAGE=ct-template:main
-FROM ${BASE_IMAGE}
+ARG BASE_IMAGE_FALLBACK_PREFIX=
+FROM ${BASE_IMAGE_FALLBACK_PREFIX}${BASE_IMAGE}
 
 RUN echo "This stage is built on the image from Dockerfile."

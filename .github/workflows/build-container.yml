@@ -112,6 +112,7 @@ jobs:
           tags: |
             type=ref,event=branch
             type=ref,event=pr
+            type=raw,value=main
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix=,format=short
@@ -125,13 +126,18 @@ jobs:
           context: .
           file: ${{ matrix.dockerfile }}
           platforms: ${{ matrix.platforms }}
-          build-args: ${{ matrix.stage > 0 && format('BASE_IMAGE={0}/{1}{2}:{3}', env.REGISTRY, github.repository, matrix.suffix, github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && format('pr-{0}', github.event.number) || 'main') || '' }}
+          build-args: |
+            BASE_IMAGE_FALLBACK_PREFIX=${{ env.REGISTRY }}/${{ github.repository_owner }}/
           push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           provenance: false
-          cache-from: type=gha,scope=${{ github.repository }}${{ matrix.suffix }}
-          cache-to: type=gha,scope=${{ github.repository }}${{ matrix.suffix }},mode=max
+          cache-from: |
+            type=gha,scope=${{ github.repository }}
+            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }}
+          cache-to: |
+            type=gha,scope=${{ github.repository }},mode=max
+            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }},mode=max
 
   build-stage-1:
     name: Build and Push (${{ github.repository }}${{ matrix.suffix }})
@@ -168,6 +174,7 @@ jobs:
           tags: |
             type=ref,event=branch
             type=ref,event=pr
+            type=raw,value=main
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix=,format=short
@@ -181,13 +188,18 @@ jobs:
           context: .
           file: ${{ matrix.dockerfile }}
           platforms: ${{ matrix.platforms }}
-          build-args: ${{ matrix.stage > 0 && format('BASE_IMAGE={0}/{1}{2}:{3}', env.REGISTRY, github.repository, matrix.suffix, github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && format('pr-{0}', github.event.number) || 'main') || '' }}
+          build-args: |
+            BASE_IMAGE_FALLBACK_PREFIX=${{ env.REGISTRY }}/${{ github.repository_owner }}/
           push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           provenance: false
-          cache-from: type=gha,scope=${{ github.repository }}${{ matrix.suffix }}
-          cache-to: type=gha,scope=${{ github.repository }}${{ matrix.suffix }},mode=max
+          cache-from: |
+            type=gha,scope=${{ github.repository }}
+            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }}
+          cache-to: |
+            type=gha,scope=${{ github.repository }},mode=max
+            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }},mode=max
 
   build-stage-2:
     name: Build and Push (${{ github.repository }}${{ matrix.suffix }})
@@ -225,6 +237,7 @@ jobs:
           tags: |
             type=ref,event=branch
             type=ref,event=pr
+            type=raw,value=main
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix=,format=short
@@ -238,13 +251,18 @@ jobs:
           context: .
           file: ${{ matrix.dockerfile }}
           platforms: ${{ matrix.platforms }}
-          build-args: ${{ matrix.stage > 0 && format('BASE_IMAGE={0}/{1}{2}:{3}', env.REGISTRY, github.repository, matrix.suffix, github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && format('pr-{0}', github.event.number) || 'main') || '' }}
+          build-args: |
+            BASE_IMAGE_FALLBACK_PREFIX=${{ env.REGISTRY }}/${{ github.repository_owner }}/
           push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           provenance: false
-          cache-from: type=gha,scope=${{ github.repository }}${{ matrix.suffix }}
-          cache-to: type=gha,scope=${{ github.repository }}${{ matrix.suffix }},mode=max
+          cache-from: |
+            type=gha,scope=${{ github.repository }}
+            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }}
+          cache-to: |
+            type=gha,scope=${{ github.repository }},mode=max
+            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }},mode=max
 
   build-stage-3:
     name: Build and Push (${{ github.repository }}${{ matrix.suffix }})
@@ -283,6 +301,7 @@ jobs:
           tags: |
             type=ref,event=branch
             type=ref,event=pr
+            type=raw,value=main
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix=,format=short
@@ -296,13 +315,18 @@ jobs:
           context: .
           file: ${{ matrix.dockerfile }}
           platforms: ${{ matrix.platforms }}
-          build-args: ${{ matrix.stage > 0 && format('BASE_IMAGE={0}/{1}{2}:{3}', env.REGISTRY, github.repository, matrix.suffix, github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && format('pr-{0}', github.event.number) || 'main') || '' }}
+          build-args: |
+            BASE_IMAGE_FALLBACK_PREFIX=${{ env.REGISTRY }}/${{ github.repository_owner }}/
           push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           provenance: false
-          cache-from: type=gha,scope=${{ github.repository }}${{ matrix.suffix }}
-          cache-to: type=gha,scope=${{ github.repository }}${{ matrix.suffix }},mode=max
+          cache-from: |
+            type=gha,scope=${{ github.repository }}
+            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }}
+          cache-to: |
+            type=gha,scope=${{ github.repository }},mode=max
+            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }},mode=max
 
   build-stage-4:
     name: Build and Push (${{ github.repository }}${{ matrix.suffix }})
@@ -342,6 +366,7 @@ jobs:
           tags: |
             type=ref,event=branch
             type=ref,event=pr
+            type=raw,value=main
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix=,format=short
@@ -355,10 +380,15 @@ jobs:
           context: .
           file: ${{ matrix.dockerfile }}
           platforms: ${{ matrix.platforms }}
-          build-args: ${{ matrix.stage > 0 && format('BASE_IMAGE={0}/{1}{2}:{3}', env.REGISTRY, github.repository, matrix.suffix, github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && format('pr-{0}', github.event.number) || 'main') || '' }}
+          build-args: |
+            BASE_IMAGE_FALLBACK_PREFIX=${{ env.REGISTRY }}/${{ github.repository_owner }}/
           push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           provenance: false
-          cache-from: type=gha,scope=${{ github.repository }}${{ matrix.suffix }}
-          cache-to: type=gha,scope=${{ github.repository }}${{ matrix.suffix }},mode=max
+          cache-from: |
+            type=gha,scope=${{ github.repository }}
+            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }}
+          cache-to: |
+            type=gha,scope=${{ github.repository }},mode=max
+            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }},mode=max

@@ -30,10 +30,6 @@ for stage in 0 1 2 3 4; do
     [[ "$current_stage" -eq "$stage" ]] || continue
 
     image="${repository}${name//./-}:main"
-    args=()
-    if [[ "$stage" -gt 0 ]]; then
-      args+=(--build-arg "BASE_IMAGE=${repository}${name//./-}:main")
-    fi
-    docker build --file "$dockerfile" --tag "$image" "${args[@]}" .
+    docker build --file "$dockerfile" --tag "$image" .
   done
 done

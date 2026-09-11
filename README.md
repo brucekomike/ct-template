@@ -53,22 +53,28 @@ If you need some images to build only after others have finished (for example, a
 ### Using a Previous Stage as a Base Image
 
 A staged Dockerfile can use the image produced by an earlier Dockerfile as its
-base image. For example, `Dockerfile.1` uses the image built from `Dockerfile`:
+base image. For example, `Dockerfile.foo.1` uses the image built from
+`Dockerfile`, and `Dockerfile.bar.2` uses the image built from
+`Dockerfile.foo.1`:
 
 ```dockerfile
 ARG BASE_IMAGE=ct-template:main
-FROM ${BASE_IMAGE}
+ARG BASE_IMAGE_FALLBACK_PREFIX=
+FROM ${BASE_IMAGE_FALLBACK_PREFIX}${BASE_IMAGE}
 
 RUN <additional build steps>
 ```
 
-Build and tag the stage-0 image locally before building the staged Dockerfile,
-then pass its tag through `BASE_IMAGE` if it differs from the default
-`ct-template:main`. In CI, staged builds use the current PR tag (or stable
-`main` tag for branch builds) published by the previous stage. The workflow uses
-the same GitHub Actions cache scope
-(`github.repository` plus the image suffix) for matching staged Dockerfiles, so
-unchanged build steps can be reused between stages.
+Set `BASE_IMAGE` in each staged Dockerfile to the local image tag that should be
+used as its base. For example, `Dockerfile.foo.1` can default to
+`ct-template:main`, while `Dockerfile.bar.2` can default to
+`ct-template-foo:main`. Leave `BASE_IMAGE_FALLBACK_PREFIX` empty for local
+builds so Docker resolves those local tags directly. In CI, the workflow sets
+that prefix to `ghcr.io/<owner>/` and also adds an explicit `:main` tag, so
+staged Dockerfiles can fall back to the current repository's published images
+when the local builder cannot resolve a prior stage image directly. The
+workflow also publishes both shared and per-image GitHub Actions cache scopes so
+Dockerfiles can reuse cached layers across stages.
 
 ## Image Tags
 
@@ -120,8 +126,9 @@ bin/push-all.sh ghcr.io/<your-github-username>/<your-repo-name>:main
 ```
 
 `build-all.sh` discovers all `Dockerfile*` files and builds stages in order,
-using the preceding stage's local `main`-tagged image as the base. `push-all.sh`
-pushes each discovered image variant to the matching remote repository name.
+using each Dockerfile's own `BASE_IMAGE` default when it needs a prior image.
+`push-all.sh` pushes each discovered image variant to the matching remote
+repository name.
 
 ## Requirements
 
