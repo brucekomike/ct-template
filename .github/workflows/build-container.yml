@@ -134,10 +134,10 @@ jobs:
           provenance: false
           cache-from: |
             type=gha,scope=${{ github.repository }}
-            type=gha,scope=${{ github.repository }}${{ matrix.suffix }}
+            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }}
           cache-to: |
             type=gha,scope=${{ github.repository }},mode=max
-            type=gha,scope=${{ github.repository }}${{ matrix.suffix }},mode=max
+            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }},mode=max
 
   build-stage-1:
     name: Build and Push (${{ github.repository }}${{ matrix.suffix }})
@@ -196,10 +196,10 @@ jobs:
           provenance: false
           cache-from: |
             type=gha,scope=${{ github.repository }}
-            type=gha,scope=${{ github.repository }}${{ matrix.suffix }}
+            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }}
           cache-to: |
             type=gha,scope=${{ github.repository }},mode=max
-            type=gha,scope=${{ github.repository }}${{ matrix.suffix }},mode=max
+            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }},mode=max
 
   build-stage-2:
     name: Build and Push (${{ github.repository }}${{ matrix.suffix }})
@@ -259,10 +259,10 @@ jobs:
           provenance: false
           cache-from: |
             type=gha,scope=${{ github.repository }}
-            type=gha,scope=${{ github.repository }}${{ matrix.suffix }}
+            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }}
           cache-to: |
             type=gha,scope=${{ github.repository }},mode=max
-            type=gha,scope=${{ github.repository }}${{ matrix.suffix }},mode=max
+            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }},mode=max
 
   build-stage-3:
     name: Build and Push (${{ github.repository }}${{ matrix.suffix }})
@@ -323,10 +323,10 @@ jobs:
           provenance: false
           cache-from: |
             type=gha,scope=${{ github.repository }}
-            type=gha,scope=${{ github.repository }}${{ matrix.suffix }}
+            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }}
           cache-to: |
             type=gha,scope=${{ github.repository }},mode=max
-            type=gha,scope=${{ github.repository }}${{ matrix.suffix }},mode=max
+            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }},mode=max
 
   build-stage-4:
     name: Build and Push (${{ github.repository }}${{ matrix.suffix }})
@@ -388,7 +388,7 @@ jobs:
           provenance: false
           cache-from: |
             type=gha,scope=${{ github.repository }}
-            type=gha,scope=${{ github.repository }}${{ matrix.suffix }}
+            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }}
           cache-to: |
             type=gha,scope=${{ github.repository }},mode=max
-            type=gha,scope=${{ github.repository }}${{ matrix.suffix }},mode=max
+            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }},mode=max
