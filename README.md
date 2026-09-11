@@ -64,11 +64,7 @@ RUN <additional build steps>
 
 Build and tag the stage-0 image locally before building the staged Dockerfile,
 then pass its tag through `BASE_IMAGE` if it differs from the default
-`ct-template:main`. In CI, staged builds use the current PR tag (or stable
-`main` tag for branch builds) published by the previous stage. The workflow uses
-the same GitHub Actions cache scope
-(`github.repository` plus the image suffix) for matching staged Dockerfiles, so
-unchanged build steps can be reused between stages.
+`ct-template:main`.
 
 ## Image Tags
 
