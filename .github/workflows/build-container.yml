@@ -32,6 +32,11 @@ jobs:
       matrix-stage-2: ${{ steps.find.outputs.matrix-stage-2 }}
       matrix-stage-3: ${{ steps.find.outputs.matrix-stage-3 }}
       matrix-stage-4: ${{ steps.find.outputs.matrix-stage-4 }}
+      merge-matrix-stage-0: ${{ steps.find.outputs.merge-matrix-stage-0 }}
+      merge-matrix-stage-1: ${{ steps.find.outputs.merge-matrix-stage-1 }}
+      merge-matrix-stage-2: ${{ steps.find.outputs.merge-matrix-stage-2 }}
+      merge-matrix-stage-3: ${{ steps.find.outputs.merge-matrix-stage-3 }}
+      merge-matrix-stage-4: ${{ steps.find.outputs.merge-matrix-stage-4 }}
       has-stage-0: ${{ steps.find.outputs.has-stage-0 }}
       has-stage-1: ${{ steps.find.outputs.has-stage-1 }}
       has-stage-2: ${{ steps.find.outputs.has-stage-2 }}
@@ -60,8 +65,8 @@ jobs:
                else {stage: 0, rest: $full_rest}
                end) as $r |
               (if $r.rest == "" then "" else "-" + $r.rest end) as $suffix |
-              (if (($amd64_only_list | index($f)) != null or ($amd64_only_list | index($name)) != null) then "linux/amd64" else "linux/amd64,linux/arm64" end) as $platforms |
-              {"dockerfile": $f, "suffix": $suffix, "platforms": $platforms, "stage": $r.stage}
+              (if (($amd64_only_list | index($f)) != null or ($amd64_only_list | index($name)) != null) then ["amd64"] else ["amd64", "arm64"] end) as $archs |
+              {"dockerfile": $f, "suffix": $suffix, "archs": $archs, "stage": $r.stage}
             ]')
 
           max_stage=$(echo "$all" | jq '[.[].stage] | max // 0')
@@ -71,9 +76,11 @@ jobs:
           fi
 
           for i in 0 1 2 3 4; do
-            m=$(echo "$all" | jq -c --argjson i "$i" '{include: [.[] | select(.stage == $i)]}')
-            count=$(echo "$m" | jq '.include | length')
+            m=$(echo "$all" | jq -c --argjson i "$i" '{include: [.[] | select(.stage == $i) | . as $e | $e.archs[] | {dockerfile: $e.dockerfile, suffix: $e.suffix, arch: ., platform: ("linux/" + .), runner: (if . == "arm64" then "ubuntu-24.04-arm" else "ubuntu-latest" end)}]}')
+            mm=$(echo "$all" | jq -c --argjson i "$i" '{include: [.[] | select(.stage == $i) | {suffix: .suffix, archs: (.archs | join(" "))}]}')
+            count=$(echo "$mm" | jq '.include | length')
             echo "matrix-stage-$i=$m" >> "$GITHUB_OUTPUT"
+            echo "merge-matrix-stage-$i=$mm" >> "$GITHUB_OUTPUT"
             if [ "$count" -gt 0 ]; then
               echo "has-stage-$i=true" >> "$GITHUB_OUTPUT"
             else
@@ -82,10 +89,10 @@ jobs:
           done
 
   build-stage-0:
-    name: Build and Push (${{ github.repository }}${{ matrix.suffix }})
+    name: Build (${{ github.repository }}${{ matrix.suffix }}, ${{ matrix.arch }})
     needs: detect-dockerfiles
     if: needs.detect-dockerfiles.outputs.has-stage-0 == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
       packages: write
@@ -116,6 +123,8 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix=,format=short
+          flavor: |
+            suffix=-${{ matrix.arch }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -125,7 +134,7 @@ jobs:
         with:
           context: .
           file: ${{ matrix.dockerfile }}
-          platforms: ${{ matrix.platforms }}
+          platforms: ${{ matrix.platform }}
           build-args: |
             BASE_IMAGE_FALLBACK_PREFIX=${{ env.REGISTRY }}/${{ github.repository_owner }}/
           push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
@@ -133,21 +142,75 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           provenance: false
           cache-from: |
-            type=gha,scope=${{ github.repository }}
-            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }}
+            type=gha,scope=${{ github.repository }}-${{ matrix.arch }}
+            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }}-${{ matrix.arch }}
           cache-to: |
-            type=gha,scope=${{ github.repository }},mode=max
-            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }},mode=max
+            type=gha,scope=${{ github.repository }}-${{ matrix.arch }},mode=max
+            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }}-${{ matrix.arch }},mode=max
 
-  build-stage-1:
-    name: Build and Push (${{ github.repository }}${{ matrix.suffix }})
+  merge-stage-0:
+    name: Merge manifest (${{ github.repository }}${{ matrix.suffix }})
     needs: [detect-dockerfiles, build-stage-0]
     if: |
       always() &&
       needs.detect-dockerfiles.result == 'success' &&
-      needs.detect-dockerfiles.outputs.has-stage-1 == 'true' &&
-      (needs.build-stage-0.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-0 == 'false')
+      needs.detect-dockerfiles.outputs.has-stage-0 == 'true' &&
+      needs.build-stage-0.result == 'success'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.detect-dockerfiles.outputs.merge-matrix-stage-0) }}
+
+    steps:
+      - name: Log in to the Container registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}${{ matrix.suffix }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=raw,value=main
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=,format=short
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Create multi-arch manifests
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          ARCHS: ${{ matrix.archs }}
+        run: |
+          for tag in $TAGS; do
+            sources=""
+            for arch in $ARCHS; do
+              sources="$sources ${tag}-${arch}"
+            done
+            docker buildx imagetools create -t "$tag" $sources
+          done
+
+  build-stage-1:
+    name: Build (${{ github.repository }}${{ matrix.suffix }}, ${{ matrix.arch }})
+    needs: [detect-dockerfiles, merge-stage-0]
+    if: |
+      always() &&
+      needs.detect-dockerfiles.result == 'success' &&
+      needs.detect-dockerfiles.outputs.has-stage-1 == 'true' &&
+      (needs.merge-stage-0.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-0 == 'false')
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
       packages: write
@@ -178,6 +241,8 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix=,format=short
+          flavor: |
+            suffix=-${{ matrix.arch }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -187,7 +252,7 @@ jobs:
         with:
           context: .
           file: ${{ matrix.dockerfile }}
-          platforms: ${{ matrix.platforms }}
+          platforms: ${{ matrix.platform }}
           build-args: |
             BASE_IMAGE_FALLBACK_PREFIX=${{ env.REGISTRY }}/${{ github.repository_owner }}/
           push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
@@ -195,22 +260,130 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           provenance: false
           cache-from: |
-            type=gha,scope=${{ github.repository }}
-            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }}
+            type=gha,scope=${{ github.repository }}-${{ matrix.arch }}
+            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }}-${{ matrix.arch }}
           cache-to: |
-            type=gha,scope=${{ github.repository }},mode=max
-            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }},mode=max
+            type=gha,scope=${{ github.repository }}-${{ matrix.arch }},mode=max
+            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }}-${{ matrix.arch }},mode=max
+
+  merge-stage-4:
+    name: Merge manifest (${{ github.repository }}${{ matrix.suffix }})
+    needs: [detect-dockerfiles, build-stage-4]
+    if: |
+      always() &&
+      needs.detect-dockerfiles.result == 'success' &&
+      needs.detect-dockerfiles.outputs.has-stage-4 == 'true' &&
+      needs.build-stage-4.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.detect-dockerfiles.outputs.merge-matrix-stage-4) }}
+
+    steps:
+      - name: Log in to the Container registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}${{ matrix.suffix }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=raw,value=main
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=,format=short
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Create multi-arch manifests
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          ARCHS: ${{ matrix.archs }}
+        run: |
+          for tag in $TAGS; do
+            sources=""
+            for arch in $ARCHS; do
+              sources="$sources ${tag}-${arch}"
+            done
+            docker buildx imagetools create -t "$tag" $sources
+          done
+
+  merge-stage-1:
+    name: Merge manifest (${{ github.repository }}${{ matrix.suffix }})
+    needs: [detect-dockerfiles, build-stage-1]
+    if: |
+      always() &&
+      needs.detect-dockerfiles.result == 'success' &&
+      needs.detect-dockerfiles.outputs.has-stage-1 == 'true' &&
+      needs.build-stage-1.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.detect-dockerfiles.outputs.merge-matrix-stage-1) }}
+
+    steps:
+      - name: Log in to the Container registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}${{ matrix.suffix }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=raw,value=main
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=,format=short
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Create multi-arch manifests
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          ARCHS: ${{ matrix.archs }}
+        run: |
+          for tag in $TAGS; do
+            sources=""
+            for arch in $ARCHS; do
+              sources="$sources ${tag}-${arch}"
+            done
+            docker buildx imagetools create -t "$tag" $sources
+          done
 
   build-stage-2:
-    name: Build and Push (${{ github.repository }}${{ matrix.suffix }})
-    needs: [detect-dockerfiles, build-stage-0, build-stage-1]
+    name: Build (${{ github.repository }}${{ matrix.suffix }}, ${{ matrix.arch }})
+    needs: [detect-dockerfiles, merge-stage-0, merge-stage-1]
     if: |
       always() &&
       needs.detect-dockerfiles.result == 'success' &&
       needs.detect-dockerfiles.outputs.has-stage-2 == 'true' &&
-      (needs.build-stage-0.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-0 == 'false') &&
-      (needs.build-stage-1.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-1 == 'false')
-    runs-on: ubuntu-latest
+      (needs.merge-stage-0.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-0 == 'false') &&
+      (needs.merge-stage-1.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-1 == 'false')
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
       packages: write
@@ -241,6 +414,8 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix=,format=short
+          flavor: |
+            suffix=-${{ matrix.arch }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -250,7 +425,7 @@ jobs:
         with:
           context: .
           file: ${{ matrix.dockerfile }}
-          platforms: ${{ matrix.platforms }}
+          platforms: ${{ matrix.platform }}
           build-args: |
             BASE_IMAGE_FALLBACK_PREFIX=${{ env.REGISTRY }}/${{ github.repository_owner }}/
           push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
@@ -258,23 +433,77 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           provenance: false
           cache-from: |
-            type=gha,scope=${{ github.repository }}
-            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }}
+            type=gha,scope=${{ github.repository }}-${{ matrix.arch }}
+            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }}-${{ matrix.arch }}
           cache-to: |
-            type=gha,scope=${{ github.repository }},mode=max
-            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }},mode=max
+            type=gha,scope=${{ github.repository }}-${{ matrix.arch }},mode=max
+            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }}-${{ matrix.arch }},mode=max
+
+  merge-stage-2:
+    name: Merge manifest (${{ github.repository }}${{ matrix.suffix }})
+    needs: [detect-dockerfiles, build-stage-2]
+    if: |
+      always() &&
+      needs.detect-dockerfiles.result == 'success' &&
+      needs.detect-dockerfiles.outputs.has-stage-2 == 'true' &&
+      needs.build-stage-2.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.detect-dockerfiles.outputs.merge-matrix-stage-2) }}
+
+    steps:
+      - name: Log in to the Container registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}${{ matrix.suffix }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=raw,value=main
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=,format=short
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Create multi-arch manifests
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          ARCHS: ${{ matrix.archs }}
+        run: |
+          for tag in $TAGS; do
+            sources=""
+            for arch in $ARCHS; do
+              sources="$sources ${tag}-${arch}"
+            done
+            docker buildx imagetools create -t "$tag" $sources
+          done
 
   build-stage-3:
-    name: Build and Push (${{ github.repository }}${{ matrix.suffix }})
-    needs: [detect-dockerfiles, build-stage-0, build-stage-1, build-stage-2]
+    name: Build (${{ github.repository }}${{ matrix.suffix }}, ${{ matrix.arch }})
+    needs: [detect-dockerfiles, merge-stage-0, merge-stage-1, merge-stage-2]
     if: |
       always() &&
       needs.detect-dockerfiles.result == 'success' &&
       needs.detect-dockerfiles.outputs.has-stage-3 == 'true' &&
-      (needs.build-stage-0.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-0 == 'false') &&
-      (needs.build-stage-1.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-1 == 'false') &&
-      (needs.build-stage-2.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-2 == 'false')
-    runs-on: ubuntu-latest
+      (needs.merge-stage-0.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-0 == 'false') &&
+      (needs.merge-stage-1.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-1 == 'false') &&
+      (needs.merge-stage-2.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-2 == 'false')
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
       packages: write
@@ -305,6 +534,8 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix=,format=short
+          flavor: |
+            suffix=-${{ matrix.arch }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -314,7 +545,7 @@ jobs:
         with:
           context: .
           file: ${{ matrix.dockerfile }}
-          platforms: ${{ matrix.platforms }}
+          platforms: ${{ matrix.platform }}
           build-args: |
             BASE_IMAGE_FALLBACK_PREFIX=${{ env.REGISTRY }}/${{ github.repository_owner }}/
           push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
@@ -322,24 +553,78 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           provenance: false
           cache-from: |
-            type=gha,scope=${{ github.repository }}
-            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }}
+            type=gha,scope=${{ github.repository }}-${{ matrix.arch }}
+            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }}-${{ matrix.arch }}
           cache-to: |
-            type=gha,scope=${{ github.repository }},mode=max
-            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }},mode=max
+            type=gha,scope=${{ github.repository }}-${{ matrix.arch }},mode=max
+            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }}-${{ matrix.arch }},mode=max
+
+  merge-stage-3:
+    name: Merge manifest (${{ github.repository }}${{ matrix.suffix }})
+    needs: [detect-dockerfiles, build-stage-3]
+    if: |
+      always() &&
+      needs.detect-dockerfiles.result == 'success' &&
+      needs.detect-dockerfiles.outputs.has-stage-3 == 'true' &&
+      needs.build-stage-3.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.detect-dockerfiles.outputs.merge-matrix-stage-3) }}
+
+    steps:
+      - name: Log in to the Container registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}${{ matrix.suffix }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=raw,value=main
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=,format=short
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Create multi-arch manifests
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          ARCHS: ${{ matrix.archs }}
+        run: |
+          for tag in $TAGS; do
+            sources=""
+            for arch in $ARCHS; do
+              sources="$sources ${tag}-${arch}"
+            done
+            docker buildx imagetools create -t "$tag" $sources
+          done
 
   build-stage-4:
-    name: Build and Push (${{ github.repository }}${{ matrix.suffix }})
-    needs: [detect-dockerfiles, build-stage-0, build-stage-1, build-stage-2, build-stage-3]
+    name: Build (${{ github.repository }}${{ matrix.suffix }}, ${{ matrix.arch }})
+    needs: [detect-dockerfiles, merge-stage-0, merge-stage-1, merge-stage-2, merge-stage-3]
     if: |
       always() &&
       needs.detect-dockerfiles.result == 'success' &&
       needs.detect-dockerfiles.outputs.has-stage-4 == 'true' &&
-      (needs.build-stage-0.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-0 == 'false') &&
-      (needs.build-stage-1.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-1 == 'false') &&
-      (needs.build-stage-2.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-2 == 'false') &&
-      (needs.build-stage-3.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-3 == 'false')
-    runs-on: ubuntu-latest
+      (needs.merge-stage-0.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-0 == 'false') &&
+      (needs.merge-stage-1.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-1 == 'false') &&
+      (needs.merge-stage-2.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-2 == 'false') &&
+      (needs.merge-stage-3.result == 'success' || needs.detect-dockerfiles.outputs.has-stage-3 == 'false')
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
       packages: write
@@ -370,6 +655,8 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix=,format=short
+          flavor: |
+            suffix=-${{ matrix.arch }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -379,7 +666,7 @@ jobs:
         with:
           context: .
           file: ${{ matrix.dockerfile }}
-          platforms: ${{ matrix.platforms }}
+          platforms: ${{ matrix.platform }}
           build-args: |
             BASE_IMAGE_FALLBACK_PREFIX=${{ env.REGISTRY }}/${{ github.repository_owner }}/
           push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
@@ -387,8 +674,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           provenance: false
           cache-from: |
-            type=gha,scope=${{ github.repository }}
-            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }}
+            type=gha,scope=${{ github.repository }}-${{ matrix.arch }}
+            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }}-${{ matrix.arch }}
           cache-to: |
-            type=gha,scope=${{ github.repository }},mode=max
-            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }},mode=max
+            type=gha,scope=${{ github.repository }}-${{ matrix.arch }},mode=max
+            type=gha,scope=${{ github.repository }}${{ matrix.suffix || '-root' }}-${{ matrix.arch }},mode=max

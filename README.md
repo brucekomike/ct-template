@@ -24,10 +24,15 @@ Each image is built in parallel using a matrix strategy.
 
 ### Multi-Architecture Builds
 
-By default, each image is built for:
+By default, each image is built separately on native runners for:
 
 - `linux/amd64`
 - `linux/arm64`
+
+The workflow uses `ubuntu-latest` for amd64 and `ubuntu-24.04-arm` for arm64,
+then merges the architecture-specific images into a multi-architecture manifest
+under the normal image tags. This avoids QEMU emulation. Staged builds wait for
+the previous stage's manifest before starting.
 
 If a specific Dockerfile is amd64-only, set the workflow env var `AMD64_ONLY_DOCKERFILES` to a comma-separated list of Dockerfile paths or filenames (for example `Dockerfile.legacy,services/api/Dockerfile`).
 Those entries will be built only for `linux/amd64`.
